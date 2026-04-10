@@ -33,7 +33,7 @@ const TOUR_CONFIG = {
     /* ── Preview / Progressive Loading ─────────────────── */
     //  Set to true after placing low-res JPEGs in
     //  assets/panoramas/preview/  with the SAME file names.
-    enablePreview: false,
+    enablePreview: true,
     previewDir: 'assets/panoramas/preview/',
   },
 

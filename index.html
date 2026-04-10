@@ -3,7 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <meta name="description" content="Texnikum 3D Virtual Sayohat — 360° interaktiv tur" />
+  <meta name="description" content="Texnikum 3D Virtual Sayohat — 360° interaktiv sayohat va innovatsion ta'lim muhiti." />
+  <meta property="og:title" content="Texnikum — 3D Virtual Tour" />
+  <meta property="og:description" content="Interaktiv 360° virtual sayohat orqali maskanimizni kashf eting." />
+  <meta property="og:type" content="website" />
   <title>Texnikum — 3D Virtual Tour</title>
 
   <!-- ═══ DNS Prefetch & Preconnect (shave ~100-300 ms) ═══ -->
@@ -12,14 +15,18 @@
   <link rel="preconnect"  href="https://fonts.googleapis.com" />
   <link rel="preconnect"  href="https://fonts.gstatic.com" crossorigin />
 
+  <!-- ═══ Critical Asset Preload ═══ -->
+  <link rel="preload" as="image" href="assets/panoramas/01_kirish_tashqari.jpg" />
+  <link rel="preload" as="image" href="assets/panoramas/preview/01_kirish_tashqari.jpg" />
+
   <!-- ═══ Pannellum CSS (critical — keep render-blocking) ═══ -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.css" />
 
   <!-- ═══ Non-blocking JS: defer downloads in parallel,
            executes in order AFTER DOM parsing ═══════════════ -->
   <script defer src="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.js"></script>
-  <script defer src="js/config.js"></script>
-  <script defer src="js/app.js"></script>
+  <script defer type="module" src="js/config.js"></script>
+  <script defer type="module" src="js/app.js"></script>
 
   <!-- ═══ Inter Font ═══ -->
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
