@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="description" content="Texnikum 3D Virtual Sayohat — 360° interaktiv tur" />
+  <title>Texnikum — 3D Virtual Tour</title>
+
+  <!-- ═══ DNS Prefetch & Preconnect (shave ~100-300 ms) ═══ -->
+  <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+  <link rel="preconnect"  href="https://cdn.jsdelivr.net" crossorigin />
+  <link rel="preconnect"  href="https://fonts.googleapis.com" />
+  <link rel="preconnect"  href="https://fonts.gstatic.com" crossorigin />
+
+  <!-- ═══ Pannellum CSS (critical — keep render-blocking) ═══ -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.css" />
+
+  <!-- ═══ Non-blocking JS: defer downloads in parallel,
+           executes in order AFTER DOM parsing ═══════════════ -->
+  <script defer src="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.js"></script>
+  <script defer src="js/config.js"></script>
+  <script defer src="js/app.js"></script>
+
+  <!-- ═══ Inter Font ═══ -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+
+  <!-- ═══ Remix Icons (non-critical icons — async load) ═══ -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/remixicon@4.2.0/fonts/remixicon.css"
+        media="print" onload="this.media='all'" />
+  <noscript>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/remixicon@4.2.0/fonts/remixicon.css" />
+  </noscript>
+
+  <style>
+    /* ── Resets & base ──────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; overflow: hidden; font-family: 'Inter', system-ui, sans-serif; background: #09090b; color: #e4e4e7; }
+
+    /* ── Pannellum container (GPU-promoted layer) ───── */
+    #panorama {
+      width: 100%; height: 100%;
+      position: absolute; inset: 0; z-index: 1;
+      will-change: transform;
+      transform: translateZ(0);                /* force GPU composite layer */
+      backface-visibility: hidden;
+      transition: transform 0.45s cubic-bezier(.4,0,.2,1);
+    }
+    #panorama .pnlm-about-msg,
+    #panorama .pnlm-orientation-button,
+    #panorama .pnlm-zoom-controls,
+    #panorama .pnlm-fullscreen-toggle-button,
+    #panorama .pnlm-hot-spot-debug-indicator,
+    #panorama .pnlm-load-button { display: none !important; }
+
+    /* ── Scene Zoom-in Transition ──────────────────── */
+    #panorama.scene-zoom-in {
+      transform: scale(1.12) translateZ(0);
+    }
+
+    /* ── Glassmorphism toolkit ─────────────────────── */
+    .glass {
+      background: rgba(15, 15, 25, 0.55);
+      backdrop-filter: blur(20px) saturate(1.4);
+      -webkit-backdrop-filter: blur(20px) saturate(1.4);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .glass-strong {
+      background: rgba(10, 10, 20, 0.75);
+      backdrop-filter: blur(28px) saturate(1.6);
+      -webkit-backdrop-filter: blur(28px) saturate(1.6);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    /* ── Transition overlay ────────────────────────── */
+    #transition-overlay {
+      position: fixed; inset: 0; z-index: 100;
+      background: rgba(9, 9, 11, 0.92);
+      display: flex; align-items: center; justify-content: center;
+      opacity: 0; pointer-events: none;
+      transition: opacity 0.4s cubic-bezier(.4,0,.2,1);
+      will-change: opacity;
+    }
+    #transition-overlay.visible { opacity: 1; pointer-events: auto; }
+
+    /* ── Spinner ───────────────────────────────────── */
+    #loading-spinner {
+      width: 48px; height: 48px;
+      border: 3px solid rgba(167, 139, 250, 0.15);
+      border-top-color: #a78bfa;
+      border-radius: 50%;
+      opacity: 0;
+      transition: opacity 0.3s;
+      animation: spin 0.8s linear infinite;
+      will-change: transform;
+    }
+    #loading-spinner.visible { opacity: 1; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Preload progress bar ─────────────────────── */
+    #preload-bar {
+      position: fixed; top: 0; left: 0; right: 0;
+      height: 3px; z-index: 200;
+      background: transparent;
+      pointer-events: none;
+      overflow: hidden;
+    }
+    #preload-bar::after {
+      content: '';
+      position: absolute; inset: 0;
+      background: linear-gradient(90deg, transparent, #a78bfa, #c4b5fd, #a78bfa, transparent);
+      transform: translateX(-100%);
+      transition: none;
+    }
+    #preload-bar.active::after {
+      animation: preload-slide 1.2s cubic-bezier(.4,0,.6,1) infinite;
+    }
+    @keyframes preload-slide {
+      0%   { transform: translateX(-100%); }
+      100% { transform: translateX(100%); }
+    }
+
+    /* ── Header bar ────────────────────────────────── */
+    #header {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 50;
+      height: 56px;
+      display: flex; align-items: center; gap: 12px;
+      padding: 0 16px;
+    }
+    #header-badge {
+      width: 32px; height: 32px;
+      display: flex; align-items: center; justify-content: center;
+      border-radius: 8px;
+      background: linear-gradient(135deg, #a78bfa 0%, #7c3aed 100%);
+      font-size: 13px; font-weight: 700; color: #fff;
+      flex-shrink: 0;
+    }
+    #header-title {
+      font-size: 15px; font-weight: 600; letter-spacing: -0.01em;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    #scene-counter {
+      margin-left: auto;
+      font-size: 12px; font-weight: 500;
+      color: rgba(228,228,231,0.5);
+      flex-shrink: 0;
+    }
+
+    /* ── Menu button ───────────────────────────────── */
+    #btn-menu {
+      width: 40px; height: 40px;
+      display: flex; align-items: center; justify-content: center;
+      border-radius: 10px; cursor: pointer;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.08);
+      color: #e4e4e7; font-size: 20px;
+      transition: background 0.2s, transform 0.15s;
+      flex-shrink: 0;
+    }
+    #btn-menu:hover { background: rgba(255,255,255,0.12); transform: scale(1.05); }
+
+    /* ── Sidebar ───────────────────────────────────── */
+    #sidebar {
+      position: fixed; top: 0; left: 0; bottom: 0;
+      width: 280px; max-width: 85vw; z-index: 80;
+      transform: translateX(-100%);
+      transition: transform 0.35s cubic-bezier(.4,0,.2,1);
+      display: flex; flex-direction: column;
+      padding: 0;
+      overflow: hidden;
+      will-change: transform;
+    }
+    #sidebar.open { transform: translateX(0); }
+
+    #sidebar-backdrop {
+      position: fixed; inset: 0; z-index: 75;
+      background: rgba(0,0,0,0.5);
+      opacity: 0; pointer-events: none;
+      transition: opacity 0.3s;
+    }
+    #sidebar-backdrop.visible { opacity: 1; pointer-events: auto; }
+
+    .sidebar-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 20px;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+    .sidebar-brand {
+      display: flex; align-items: center; gap: 10px;
+    }
+    .sidebar-brand-icon {
+      width: 36px; height: 36px;
+      display: flex; align-items: center; justify-content: center;
+      border-radius: 10px;
+      background: linear-gradient(135deg, #a78bfa, #6d28d9);
+      font-size: 18px; color: #fff;
+    }
+    .sidebar-brand-text {
+      font-size: 15px; font-weight: 700; letter-spacing: -0.02em;
+      background: linear-gradient(135deg, #c4b5fd, #a78bfa);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .sidebar-close {
+      width: 32px; height: 32px;
+      display: flex; align-items: center; justify-content: center;
+      border-radius: 8px; cursor: pointer;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.06);
+      color: #a1a1aa; font-size: 18px;
+      transition: background 0.2s;
+    }
+    .sidebar-close:hover { background: rgba(255,255,255,0.12); color: #fff; }
+
+    .sidebar-label {
+      padding: 16px 20px 8px;
+      font-size: 10px; font-weight: 600; letter-spacing: 0.08em;
+      text-transform: uppercase; color: rgba(161,161,170,0.6);
+    }
+
+    #sidebar-list {
+      list-style: none; padding: 0 8px 16px; margin: 0;
+      overflow-y: auto; flex: 1;
+    }
+    #sidebar-list::-webkit-scrollbar { width: 3px; }
+    #sidebar-list::-webkit-scrollbar-thumb { background: rgba(167,139,250,0.25); border-radius: 4px; }
+
+    .sidebar-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 12px; margin: 2px 0;
+      border-radius: 10px; cursor: pointer;
+      transition: background 0.2s, transform 0.15s;
+      font-size: 13px; font-weight: 500;
+      color: rgba(228,228,231,0.7);
+    }
+    .sidebar-item:hover {
+      background: rgba(255,255,255,0.06);
+      color: #fff; transform: translateX(2px);
+    }
+    .sidebar-item.active {
+      background: rgba(167, 139, 250, 0.12);
+      border: 1px solid rgba(167, 139, 250, 0.2);
+      color: #c4b5fd;
+    }
+    .sidebar-item-number {
+      width: 24px; font-size: 11px; font-weight: 700;
+      color: rgba(167,139,250,0.5); flex-shrink: 0;
+    }
+    .sidebar-item.active .sidebar-item-number { color: #a78bfa; }
+    .sidebar-item-icon { font-size: 16px; flex-shrink: 0; }
+    .sidebar-item-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    /* ── Bottom control bar ─────────────────────────── */
+    #controls {
+      position: fixed; bottom: 20px; left: 50%; z-index: 50;
+      transform: translateX(-50%);
+      display: flex; align-items: center; gap: 6px;
+      padding: 6px 8px;
+      border-radius: 16px;
+    }
+
+    .control-btn {
+      width: 42px; height: 42px;
+      display: flex; align-items: center; justify-content: center;
+      border-radius: 12px; border: none; cursor: pointer;
+      background: rgba(255,255,255,0.06);
+      color: rgba(228,228,231,0.7);
+      font-size: 19px;
+      transition: background 0.2s, color 0.2s, transform 0.15s;
+    }
+    .control-btn:hover { background: rgba(255,255,255,0.12); color: #fff; transform: scale(1.08); }
+    .control-btn.control-active {
+      background: rgba(167, 139, 250, 0.15);
+      color: #a78bfa;
+    }
+
+    .control-divider {
+      width: 1px; height: 24px;
+      background: rgba(255,255,255,0.08);
+      margin: 0 4px;
+    }
+
+    @keyframes spin-slow { to { transform: rotate(360deg); } }
+    .spin { animation: spin-slow 2s linear infinite; }
+
+    /* ── Debug toast ────────────────────────────────── */
+    #debug-toast {
+      position: fixed; bottom: 80px; left: 50%; z-index: 60;
+      transform: translateX(-50%) translateY(10px);
+      padding: 8px 16px;
+      border-radius: 10px;
+      font-size: 12px; font-weight: 500; font-family: 'Inter', monospace;
+      white-space: nowrap;
+      opacity: 0; pointer-events: none;
+      transition: opacity 0.25s, transform 0.25s;
+      color: #00ffc8;
+    }
+    #debug-toast.visible {
+      opacity: 1; transform: translateX(-50%) translateY(0);
+    }
+
+    /* ── Responsive ─────────────────────────────────── */
+    @media (max-width: 480px) {
+      #header { height: 48px; padding: 0 10px; }
+      #header-title { font-size: 13px; }
+      #controls { bottom: 12px; padding: 4px 6px; }
+      .control-btn { width: 38px; height: 38px; font-size: 17px; border-radius: 10px; }
+      #sidebar { width: 260px; }
+    }
+    @media (max-width: 360px) {
+      #controls { gap: 4px; padding: 4px 5px; }
+      .control-btn { width: 34px; height: 34px; font-size: 15px; }
+    }
+
+    /* ── Telegram Mini App safe area ───────────────── */
+    @supports (padding-top: env(safe-area-inset-top)) {
+      #header { padding-top: env(safe-area-inset-top); }
+      #controls { padding-bottom: env(safe-area-inset-bottom); bottom: calc(12px + env(safe-area-inset-bottom)); }
+    }
+
+    /* ── Custom Hotspots (O'tish nuqtalari dizayni) ── */
+    .pnlm-scene {
+      background-image: none !important;
+      width: 36px !important;
+      height: 36px !important;
+      margin-left: -18px !important;
+      margin-top: -18px !important;
+      border-radius: 50% !important;
+      background: rgba(255, 255, 255, 0.25) !important;
+      border: 2px solid white !important;
+      backdrop-filter: blur(4px);
+      box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.7);
+      animation: pulse-hotspot 2s infinite cubic-bezier(0.66, 0, 0, 1);
+      transition: all 0.2s ease;
+      display: block !important;
+      will-change: box-shadow, transform;
+    }
+    .pnlm-scene:hover {
+      transform: scale(1.15);
+      background: rgba(167, 139, 250, 0.9) !important; /* Binafsharang */
+      border-color: #c4b5fd !important;
+      animation: none;
+      box-shadow: 0 0 15px rgba(167, 139, 250, 0.8);
+    }
+    /* Dumaloq o'rtasidagi kichik nuqta */
+    .pnlm-scene::after {
+      content: "";
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      width: 12px; height: 12px;
+      background: white;
+      border-radius: 50%;
+      transition: background 0.2s;
+    }
+    
+    @keyframes pulse-hotspot {
+      0% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.6); }
+      70% { box-shadow: 0 0 0 16px rgba(255, 255, 255, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0); }
+    }
+
+    /* ── Misc animations ───────────────────────────── */
+    .fade-in { animation: fadeIn 0.5s ease forwards; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  </style>
+</head>
+
+<body>
+  <!-- ═══════════════════ PRELOAD PROGRESS BAR ═══════════════ -->
+  <div id="preload-bar"></div>
+
+  <!-- ═══════════════════ PANORAMA CONTAINER ═══════════════════ -->
+  <div id="panorama"></div>
+
+  <!-- ═══════════════════ TRANSITION OVERLAY ═══════════════════ -->
+  <div id="transition-overlay">
+    <div id="loading-spinner"></div>
+  </div>
+
+  <!-- ═══════════════════ HEADER BAR ═══════════════════════════ -->
+  <header id="header" class="glass">
+    <button id="btn-menu" aria-label="Menu"><i class="ri-menu-3-line"></i></button>
+    <div id="header-badge">01</div>
+    <span id="header-title">Asosiy Kirish</span>
+    <span id="scene-counter">1 / 10</span>
+  </header>
+
+  <!-- ═══════════════════ SIDEBAR ══════════════════════════════ -->
+  <div id="sidebar-backdrop"></div>
+  <nav id="sidebar" class="glass-strong" aria-label="Tour Locations">
+    <div class="sidebar-header">
+      <div class="sidebar-brand">
+        <div class="sidebar-brand-icon"><i class="ri-compass-3-line"></i></div>
+        <span class="sidebar-brand-text">Virtual Tour</span>
+      </div>
+      <button id="btn-sidebar-close" class="sidebar-close" aria-label="Close sidebar"><i class="ri-close-line"></i></button>
+    </div>
+    <div class="sidebar-label">Lokatsiyalar</div>
+    <ul id="sidebar-list"></ul>
+  </nav>
+
+  <!-- ═══════════════════ BOTTOM CONTROLS ══════════════════════ -->
+  <div id="controls" class="glass">
+    <button id="btn-zoom-in" class="control-btn" aria-label="Zoom in" title="Zoom In">
+      <i class="ri-zoom-in-line"></i>
+    </button>
+    <button id="btn-zoom-out" class="control-btn" aria-label="Zoom out" title="Zoom Out">
+      <i class="ri-zoom-out-line"></i>
+    </button>
+    <div class="control-divider"></div>
+    <button id="btn-rotate" class="control-btn" aria-label="Toggle auto-rotate" title="Auto-Rotate">
+      <i id="rotate-icon" class="ri-loader-line spin"></i>
+    </button>
+    <div class="control-divider"></div>
+    <button id="btn-fullscreen" class="control-btn" aria-label="Fullscreen" title="Fullscreen">
+      <i id="fs-icon" class="ri-fullscreen-line"></i>
+    </button>
+  </div>
+
+  <!-- ═══════════════════ DEBUG TOAST ══════════════════════════ -->
+  <div id="debug-toast" class="glass"></div>
+
+  <!-- ═══════════════════ LAZY TAILWIND (non-critical) ═════════
+       Tailwind is not used for critical rendering.
+       Load after paint so it never blocks first contentful paint. -->
+  <script>
+    window.addEventListener('load', function () {
+      var s = document.createElement('script');
+      s.src = 'https://cdn.tailwindcss.com';
+      s.onload = function () {
+        if (typeof tailwind !== 'undefined') {
+          tailwind.config = {
+            theme: {
+              extend: {
+                fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+                colors: {
+                  glass: 'rgba(15, 15, 25, 0.55)',
+                  'glass-border': 'rgba(255, 255, 255, 0.08)',
+                  accent: '#a78bfa',
+                  'accent-bright': '#c4b5fd',
+                }
+              }
+            }
+          };
+        }
+      };
+      document.head.appendChild(s);
+    });
+  </script>
+</body>
+</html>
