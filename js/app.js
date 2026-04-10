@@ -13,6 +13,7 @@
  *   • GPU hints        — will-change, translateZ compositing
  * ============================================================
  */
+import TOUR_CONFIG from './config.js';
 
 (function () {
   'use strict';

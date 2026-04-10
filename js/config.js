@@ -299,3 +299,4 @@ const TOUR_CONFIG = {
     }
   }
 };
+export default TOUR_CONFIG;
